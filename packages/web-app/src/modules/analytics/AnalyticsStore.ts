@@ -20,6 +20,7 @@ export class AnalyticsStore {
         this.store.saladBowl.status,
         this.store.saladBowl.plugin.name || '-',
         this.store.saladBowl.plugin.version || '-',
+        this.store.saladBowl.plugin.algorithm || '-',
       )
     })
   }
@@ -50,6 +51,7 @@ export class AnalyticsStore {
 
     mixpanel.register({
       $app_build_number: config.appBuild,
+      Platform: this.store.native.platform,
     })
 
     if (this.store.native.desktopVersion) {
@@ -104,11 +106,13 @@ export class AnalyticsStore {
   }
 
   /** Track when mining starts */
-  public trackStart = (reason: string) => {
+  public trackStart = (reason: string, gpuEnabled: boolean, cpuEnabled: boolean) => {
     if (!this.started) return
 
     this.track('Start', {
       Reason: reason,
+      GpuEnabled: gpuEnabled,
+      CpuEnabled: cpuEnabled,
     })
   }
 
@@ -140,7 +144,7 @@ export class AnalyticsStore {
     })
   }
 
-  public trackMiningStatus = (status: MiningStatus, pluginName: string, pluginVersion: string) => {
+  public trackMiningStatus = (status: MiningStatus, pluginName: string, pluginVersion: string, algorithm: string) => {
     if (!this.started) return
 
     const now = Date.now()
@@ -157,6 +161,7 @@ export class AnalyticsStore {
       PluginName: pluginName,
       PluginVersion: pluginVersion,
       PrevTime: previousTotalTime,
+      Algorithm: algorithm,
     })
 
     if (status === MiningStatus.Stopped) {
@@ -170,7 +175,9 @@ export class AnalyticsStore {
 
   /** Track when a machine goes to the earning state */
   public trackMiningError = (type: string, errorCode: number) => {
-    if (!this.started) return
+    if (!this.started || (errorCode >= 100000000 && errorCode < 200000000)) {
+      return
+    }
 
     this.track('Mining Error', { ErrorType: type, ErrorCode: errorCode })
   }
@@ -196,15 +203,6 @@ export class AnalyticsStore {
       RewardName: reward.name,
       RewardPrice: reward.price,
       RewardCategory: reward.tags,
-    })
-  }
-
-  /** Track when a reward category is viewed */
-  public trackRewardCategoryViewed = (category: string) => {
-    if (!this.started) return
-
-    this.track('Reward Category Viewed', {
-      Category: category,
     })
   }
 
@@ -241,24 +239,6 @@ export class AnalyticsStore {
     if (!this.started) return
 
     this.track('Referral Entered', { Code: code.toUpperCase() })
-  }
-
-  public trackLifetimeXp = (lifetimeXp: number) => {
-    if (!this.started) return
-
-    mixpanel.people.set({
-      LifetimeXp: lifetimeXp,
-    })
-  }
-
-  public trackLifetimeBalance = (lifetimeBalance: number) => {
-    if (!this.started) return
-
-    if (lifetimeBalance === 0) return
-
-    mixpanel.people.set({
-      LifetimeBalance: lifetimeBalance,
-    })
   }
 
   private track = (event: string, properties?: { [key: string]: any }) => {

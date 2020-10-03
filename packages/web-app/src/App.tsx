@@ -2,15 +2,19 @@ import { SearchProvider } from '@elastic/react-search-ui'
 import AppSearchAPIConnector from '@elastic/search-ui-app-search-connector'
 import { History } from 'history'
 import React, { Component } from 'react'
+import Scrollbars from 'react-custom-scrollbars'
 import withStyles, { WithStyles } from 'react-jss'
 import { ToastContainer } from 'react-toastify'
-import { LoadingPage, MobileDevice, NotMobile } from './components'
+import { MobileDevice, NotMobile } from './components'
 import { config } from './config'
+import { MobileRoutes } from './MobileRoutes'
+import { MobileNavbarContainer, MobileTitlebarContainer } from './modules/home-views-mobile'
 import { MainTitlebarContainer } from './modules/home-views/MainTitlebarContainer'
 import { Routes } from './Routes'
+import { SaladTheme } from './SaladTheme'
 import { getStore } from './Store'
 
-const styles = {
+const styles = (theme: SaladTheme) => ({
   mainWindow: {
     userSelect: 'none',
     position: 'absolute',
@@ -20,6 +24,21 @@ const styles = {
     left: 0,
     display: 'flex',
     flexDirection: 'column',
+  },
+  mobileMainWindow: {
+    userSelect: 'none',
+    color: theme.lightGreen,
+    display: 'flex',
+    flexDirection: 'column',
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  },
+  mobileContent: {
+    padding: 20,
+    flex: 1,
   },
   container: {
     display: 'flex',
@@ -34,13 +53,12 @@ const styles = {
     maxWidth: 1600,
     position: 'relative',
   },
-}
+})
 
 interface Props extends WithStyles<typeof styles> {
   history: History
 }
 
-//TODO: Get all these values from our config
 const searchConfig = {
   apiConnector: new AppSearchAPIConnector({
     endpointBase: config.searchUrl,
@@ -73,6 +91,25 @@ const searchConfig = {
   pathname: '/search',
 }
 
+const DesktopLayout = ({ history, classes }: Props) => (
+  <div className={classes.mainWindow}>
+    <MainTitlebarContainer />
+    <div className={classes.container}>
+      <div className={classes.content}>
+        <SearchProvider
+          config={{
+            ...searchConfig,
+            history: history,
+          }}
+        >
+          <Routes />
+        </SearchProvider>
+      </div>
+      <ToastContainer />
+    </div>
+  </div>
+)
+
 export const App = withStyles(styles)(
   class App extends Component<Props> {
     store = getStore()
@@ -98,29 +135,29 @@ export const App = withStyles(styles)(
     render() {
       const { classes } = this.props
 
+      const isDesktop = this.store.native.isNative
+
       return (
         <>
-          <MobileDevice>
-            <LoadingPage text={`Device Not Currently Supported`} />
-          </MobileDevice>
-          <NotMobile>
-            <div className={classes.mainWindow}>
-              <MainTitlebarContainer />
-              <div className={classes.container}>
-                <div className={classes.content}>
-                  <SearchProvider
-                    config={{
-                      ...searchConfig,
-                      history: this.props.history,
-                    }}
-                  >
-                    <Routes />
-                  </SearchProvider>
+          {!isDesktop && (
+            <>
+              <MobileDevice>
+                <div className={classes.mobileMainWindow}>
+                  <MobileTitlebarContainer />
+                  <Scrollbars>
+                    <div className={classes.mobileContent}>
+                      <MobileRoutes />
+                    </div>
+                  </Scrollbars>
+                  <MobileNavbarContainer />
                 </div>
-                <ToastContainer />
-              </div>
-            </div>
-          </NotMobile>
+              </MobileDevice>
+              <NotMobile>
+                <DesktopLayout {...this.props} />
+              </NotMobile>
+            </>
+          )}
+          {isDesktop && <DesktopLayout {...this.props} />}
         </>
       )
     }

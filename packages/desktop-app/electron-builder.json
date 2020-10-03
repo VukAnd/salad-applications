@@ -5,6 +5,11 @@
     "output": "dist/app"
   },
   "files": ["dist/main/*"],
+  "mac": {
+    "appId": "io.salad.desktop",
+    "category": "public.app-category.utilities",
+    "darkModeSupport": true
+  },
   "win": {
     "publish": {
       "provider": "s3",
@@ -16,5 +21,22 @@
     "artifactName": "${productName} Installer ${version}.${ext}",
     "license": "LICENSE.md",
     "oneClick": false
+  },
+  "linux": {
+    "target": ["rpm", "deb", "snap"],
+    "category": "Utility"
+  },
+  "rpm": {
+    "depends": [
+      "at-spi2-core",
+      "gtk3",
+      "libappindicator1",
+      "libnotify",
+      "libXtst6",
+      "libXScrnSaver",
+      "libuuid-devel",
+      "mozilla-nss",
+      "xdg-utils"
+    ]
   }
 }

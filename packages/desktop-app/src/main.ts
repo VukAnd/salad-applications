@@ -1,12 +1,27 @@
 import * as Sentry from '@sentry/electron'
-import { app, BrowserWindow, Input, ipcMain, Menu, nativeImage, powerMonitor, shell, Tray } from 'electron'
+import {
+  app,
+  BrowserWindow,
+  Input,
+  ipcMain,
+  Menu,
+  nativeImage,
+  nativeTheme,
+  Notification,
+  powerMonitor,
+  shell,
+  Tray,
+} from 'electron'
 import { autoUpdater } from 'electron-updater'
+import { MenuItemConstructorOptions } from 'electron/main'
 import isOnline from 'is-online'
 import { WindowsToaster } from 'node-notifier'
 import * as os from 'os'
 import * as path from 'path'
+import process from 'process'
 import * as si from 'systeminformation'
 import { Config } from './config'
+import * as icons from './icons'
 import * as Logger from './Logger'
 import { MachineInfo } from './models/MachineInfo'
 import { Profile } from './models/Profile'
@@ -60,6 +75,7 @@ let pluginManager: PluginManager | undefined
 let activeIconEnabled = false
 let tray: Tray
 let updateChecked = false
+let darkTheme = false
 
 const getMachineInfo = (): Promise<MachineInfo> => {
   return Promise.allSettled([
@@ -92,6 +108,7 @@ const getMachineInfo = (): Promise<MachineInfo> => {
       memLayout: memLayout.status === 'fulfilled' ? memLayout.value : undefined,
       graphics: graphics.status === 'fulfilled' ? graphics.value : undefined,
       os: osInfo.status === 'fulfilled' ? osInfo.value : undefined,
+      platform: process.platform,
       uuid: uuid.status === 'fulfilled' ? uuid.value : undefined,
       services: services.status === 'fulfilled' ? services.value : undefined,
     }
@@ -110,6 +127,9 @@ const checkForMultipleInstance = () => {
       if (mainWindow) {
         if (!mainWindow.isVisible()) {
           mainWindow.show()
+          if (process.platform === 'darwin') {
+            app.dock.show()
+          }
         }
 
         if (mainWindow.isMinimized()) {
@@ -136,7 +156,7 @@ const createOfflineWindow = () => {
     center: true,
     frame: false,
     height: 350,
-    icon: path.join(__static, 'logo.ico'),
+    icon: icons.WINDOW_ICON_PATH,
     resizable: false,
     title: 'Salad',
     webPreferences: {
@@ -151,6 +171,32 @@ const createOfflineWindow = () => {
     console.log('offline window close')
     app.quit()
   })
+}
+
+const createMainMenu = () => {
+  if (process.platform === 'darwin') {
+    const template: MenuItemConstructorOptions[] | null = [
+      { role: 'appMenu' },
+      { role: 'editMenu' },
+      { role: 'windowMenu' },
+      {
+        role: 'help',
+        submenu: [
+          {
+            label: 'Learn More',
+            click: () => shell.openExternal('https://www.salad.io'),
+          },
+          {
+            label: 'Support',
+            click: () => shell.openExternal('https://support.salad.io'),
+          },
+        ],
+      },
+    ]
+    Menu.setApplicationMenu(Menu.buildFromTemplate(template))
+  } else {
+    Menu.setApplicationMenu(null)
+  }
 }
 
 const createMainWindow = () => {
@@ -172,7 +218,8 @@ const createMainWindow = () => {
     backgroundColor: theme.darkBlue,
     center: true,
     frame: false,
-    icon: path.join(__static, 'logo.ico'),
+    height: 1216,
+    icon: icons.WINDOW_ICON_PATH,
     minHeight: 766,
     minWidth: 1216,
     show: false,
@@ -183,6 +230,7 @@ const createMainWindow = () => {
       nodeIntegration: false,
       preload: path.resolve(__dirname, './preload.js'),
     },
+    width: 1216,
   })
 
   mainWindow.loadURL(Config.appUrl)
@@ -194,7 +242,7 @@ const createMainWindow = () => {
   })
 
   mainWindow.once('ready-to-show', () => {
-    tray = new Tray(path.join(__static, 'logo.ico'))
+    tray = new Tray(nativeImage.createFromPath(darkTheme ? icons.DARK_TRAY_ICON_PATH : icons.TRAY_ICON_PATH))
     tray.setContextMenu(createSystemTrayMenu(true))
     tray.setToolTip('Salad')
     tray.on('double-click', () => {
@@ -202,14 +250,21 @@ const createMainWindow = () => {
         if (mainWindow.isVisible()) {
           tray.setContextMenu(createSystemTrayMenu(false))
           mainWindow.hide()
+          if (process.platform === 'darwin') {
+            app.dock.hide()
+          }
         } else {
           tray.setContextMenu(createSystemTrayMenu(true))
           mainWindow.show()
+          if (process.platform === 'darwin') {
+            app.dock.show()
+          }
         }
       }
     })
 
     mainWindow.show()
+
     if (offlineWindow) {
       offlineWindow.destroy()
     }
@@ -222,25 +277,39 @@ const createMainWindow = () => {
       if (!activeIconEnabled) {
         activeIconEnabled = true
         if (mainWindow) {
-          mainWindow.setOverlayIcon(
-            nativeImage.createFromPath(path.join(__static, 'taskbar-overlay-active.png')),
-            'Background Tasks Running',
-          )
+          if (process.platform === 'win32') {
+            mainWindow.setOverlayIcon(
+              nativeImage.createFromPath(icons.TASKBAR_ACTIVE_OVERLAY_ICON_PATH),
+              'Background Tasks Running',
+            )
+          } else if (process.platform === 'linux') {
+            // TODO: Add Linux-specific icon management
+          } else if (process.platform === 'darwin') {
+            app.dock.setIcon(nativeImage.createFromPath(icons.DOCK_ACTIVE_ICON_PATH))
+          }
         }
 
         if (tray) {
-          tray.setImage(path.join(__static, 'logo-active.ico'))
+          tray.setImage(
+            nativeImage.createFromPath(darkTheme ? icons.DARK_TRAY_ACTIVE_ICON_PATH : icons.TRAY_ACTIVE_ICON_PATH),
+          )
         }
       }
     } else {
       if (activeIconEnabled) {
         activeIconEnabled = false
         if (mainWindow) {
-          mainWindow.setOverlayIcon(null, '')
+          if (process.platform === 'win32') {
+            mainWindow.setOverlayIcon(null, '')
+          } else if (process.platform === 'linux') {
+            // TODO: Add Linux-specific icon management
+          } else if (process.platform === 'darwin') {
+            app.dock.setIcon(nativeImage.createFromPath(icons.DOCK_ICON_PATH))
+          }
         }
 
         if (tray) {
-          tray.setImage(path.join(__static, 'logo.ico'))
+          tray.setImage(nativeImage.createFromPath(darkTheme ? icons.DARK_TRAY_ICON_PATH : icons.TRAY_ICON_PATH))
         }
       }
     }
@@ -298,6 +367,9 @@ const createMainWindow = () => {
     if (mainWindow && mainWindow.isVisible) {
       tray.setContextMenu(createSystemTrayMenu(false))
       mainWindow.hide()
+      if (process.platform === 'darwin') {
+        app.dock.hide()
+      }
     }
   })
 
@@ -350,20 +422,29 @@ const createMainWindow = () => {
     })
   })
 
-  bridge.on(showNotification, (message: {}) => {
-    notifier.notify(
-      {
-        ...message,
-        icon: path.join(__static, 'logo.png'),
-        appID: 'salad-technologies-desktop-app',
-      },
-      (err) => {
-        if (err) {
-          console.warn('Notification error')
-          console.warn(err)
-        }
-      },
-    )
+  bridge.on(showNotification, (message: { title: string; message: string }) => {
+    if (process.platform === 'win32') {
+      notifier.notify(
+        {
+          ...message,
+          icon: icons.NOTIFICATION_ICON_PATH,
+          appID: 'salad-technologies-desktop-app',
+        },
+        (err) => {
+          if (err) {
+            console.warn('Notification error')
+            console.warn(err)
+          }
+        },
+      )
+    } else if (Notification.isSupported()) {
+      let notification = new Notification({
+        title: message.title,
+        body: message.message,
+        icon: icons.NOTIFICATION_ICON_PATH,
+      })
+      notification.show()
+    }
   })
 
   mainWindow.webContents.on('new-window', (e: Electron.Event, url: string) => {
@@ -413,6 +494,7 @@ const checkForUpdates = () => {
 }
 
 const onReady = async () => {
+  createMainMenu()
   if (await isOnline({ timeout: 10000 })) {
     createMainWindow()
     checkForUpdates()
@@ -461,12 +543,18 @@ function createSystemTrayMenu(isVisible: boolean): Menu {
             if (mainWindow) {
               tray.setContextMenu(createSystemTrayMenu(false))
               mainWindow.hide()
+              if (process.platform === 'darwin') {
+                app.dock.hide()
+              }
             }
           }
         : () => {
             if (mainWindow) {
               tray.setContextMenu(createSystemTrayMenu(true))
               mainWindow.show()
+              if (process.platform === 'darwin') {
+                app.dock.show()
+              }
             }
           },
     },
@@ -479,3 +567,16 @@ function createSystemTrayMenu(isVisible: boolean): Menu {
     },
   ])
 }
+
+nativeTheme.on('updated', () => {
+  darkTheme = nativeTheme.shouldUseDarkColors
+  if (tray) {
+    if (activeIconEnabled) {
+      tray.setImage(
+        nativeImage.createFromPath(darkTheme ? icons.DARK_TRAY_ACTIVE_ICON_PATH : icons.TRAY_ACTIVE_ICON_PATH),
+      )
+    } else {
+      tray.setImage(nativeImage.createFromPath(darkTheme ? icons.DARK_TRAY_ICON_PATH : icons.TRAY_ICON_PATH))
+    }
+  }
+})
