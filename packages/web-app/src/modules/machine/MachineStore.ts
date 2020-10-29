@@ -1,9 +1,13 @@
 import { AxiosInstance } from 'axios'
 import { autorun, computed, flow, observable } from 'mobx'
+import { v4 as uuidv4 } from 'uuid'
+import * as Storage from '../../Storage'
 import { RootStore } from '../../Store'
 import { getPluginDefinitions } from '../salad-bowl/definitions'
 import { GpuInformation, MachineInfo } from './models'
 import { Machine } from './models/Machine'
+
+const SYSTEM_ID = 'SYSTEM_UUID'
 
 export class MachineStore {
   @observable
@@ -41,6 +45,10 @@ export class MachineStore {
       }
 
       const { services: _, ...machineWithoutServices } = machineInfo
+      if (machineWithoutServices.system != null) {
+        machineWithoutServices.system.uuid = Storage.getOrSetDefault(SYSTEM_ID, uuidv4())
+      }
+
       try {
         console.log('Registering machine with salad')
         let res: any = yield this.axios.post(`/api/v2/machines`, {
@@ -62,7 +70,7 @@ export class MachineStore {
       } catch (err) {
         this.store.analytics.captureException(new Error(`register-machine error: ${err}`), {
           contexts: {
-            machineInfo: machineWithoutServices,
+            machineInfo: machineWithoutServices as Record<string, unknown>,
           },
         })
         throw err
@@ -106,5 +114,28 @@ export class MachineStore {
     })
 
     return gpus || []
+  }
+
+  @computed
+  get cpuCompatible(): boolean {
+    const machine = this.currentMachine
+    const machineInfo = this.store.native.machineInfo
+    if (
+      machine === undefined ||
+      machineInfo?.cpu?.brand === undefined ||
+      machineInfo?.memLayout === undefined ||
+      machineInfo?.memLayout?.length === 0
+    ) {
+      return false
+    }
+
+    const pluginDefinitions = getPluginDefinitions(machine, machineInfo)
+
+    //Get all the CPU only plugin definitions
+    const cpuPlugins = pluginDefinitions.filter((pluginDefinition) =>
+      pluginDefinition.requirements.every((requirement) => requirement(machineInfo, { cpu: true, gpu: false })),
+    )
+
+    return cpuPlugins.length > 0
   }
 }
