@@ -1,7 +1,6 @@
-declare module 'is-retry-allowed' {
-  declare function isRetryAllowed(error: any): boolean
-
-  export = isRetryAllowed
+declare module 'react-hint' {
+  const x: any
+  export = x
 }
 
 //Stolen from a WIP PR - https://github.com/elastic/search-ui/pull/458/files

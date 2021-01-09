@@ -1,14 +1,8 @@
-import React, { Component } from 'react'
-
-// Store
-import { getStore } from '../../../Store'
-
-// UI
-import { MenuTitle, Divider } from '../../'
-
-// Packages
-import withStyles, { WithStyles } from 'react-jss'
 import classnames from 'classnames'
+import { Component, Fragment } from 'react'
+import withStyles, { WithStyles } from 'react-jss'
+import { Divider, MenuTitle } from '../../'
+import { getStore } from '../../../Store'
 
 const styles = {
   linkListUnstyled: {
@@ -35,6 +29,7 @@ interface Props extends WithStyles<typeof styles> {
     /** Is the item clickable */
     enabled?: boolean
     inset?: boolean
+    externalLink?: boolean
   }[]
 }
 
@@ -48,14 +43,14 @@ class _LinkListUnstyled extends Component<Props> {
       <ul className={classnames('linkListUnstyled', classes.linkListUnstyled)}>
         {list.map((item) => {
           return (
-            <React.Fragment key={item.url}>
+            <Fragment key={item.url}>
               {item.divider && <Divider className={classes.divider} />}
               <li className={classnames('linkListItem', classes.linkListItem, { [classes.inset]: item.inset })}>
-                <MenuTitle path={item.url} enabled={item.enabled}>
+                <MenuTitle path={item.url} enabled={item.enabled} externalLink={item.externalLink}>
                   {item.text}
                 </MenuTitle>
               </li>
-            </React.Fragment>
+            </Fragment>
           )
         })}
       </ul>

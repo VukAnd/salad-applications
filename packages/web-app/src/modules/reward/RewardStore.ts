@@ -74,7 +74,6 @@ export class RewardStore {
         console.log(reward)
         this.rewards.set(reward.id, reward)
       } catch (err) {
-        debugger
         throw err
       }
     }.bind(this),
@@ -129,7 +128,9 @@ export class RewardStore {
 
     //Adds the top chops category as the first category so it will always be the first row
     categories.set('top chops', new Set())
+    categories.set('winter greens', new Set())
     categories.set('fresh loot friday', new Set())
+    categories.set('other gift cards', new Set())
     categories.set('games', new Set())
     categories.set('gaming gift cards', new Set())
     categories.set('hardware', new Set())
@@ -289,6 +290,7 @@ export class RewardStore {
       if (!(error instanceof AbortError)) {
         //Hack since we getting tons of false negatives during redemptions
         if (error.message === timeoutMessage) {
+          this.store.analytics.trackRewardRedeemed(reward, true)
           //Show an order processing notification
           this.store.notifications.sendNotification({
             title: `Your order is being processed.`,
